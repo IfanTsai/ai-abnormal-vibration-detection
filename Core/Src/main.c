@@ -19,8 +19,13 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "spi.h"
+#include "stm32l4xx_hal_gpio.h"
 #include "usart.h"
 #include "gpio.h"
+#include "lis3dh.h"
+
+#include <stdio.h>
+#include <string.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -90,16 +95,36 @@ int main(void)
     MX_SPI1_Init();
     MX_USART1_UART_Init();
     /* USER CODE BEGIN 2 */
-
+    Lis3dh_dev_t *lis3dh_dev = Lis3dh_New();
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
+    float acceleration_mg[3];
+    float temperature_degC;
+    uint8_t tx_buffer[1024] = { 0 };
     while (1) {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
+        HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
+        HAL_Delay(200);
+
+        if (lis3dh_dev->Read_Acceleration(lis3dh_dev, acceleration_mg)) {
+            sprintf((char *)tx_buffer,
+                    "Acceleration [mg]:%4.2f\t%4.2f\t%4.2f\r\n",
+                    acceleration_mg[0], acceleration_mg[1], acceleration_mg[2]);
+            HAL_UART_Transmit(&huart1, tx_buffer, strlen((char const *)tx_buffer), 1000);
+        }
+
+        if (lis3dh_dev->Read_Temperature(lis3dh_dev, &temperature_degC)) {
+            sprintf((char *)tx_buffer,
+                    "Temperature [degC]:%6.2f\r\n", temperature_degC);
+            HAL_UART_Transmit(&huart1, tx_buffer, strlen((char const *)tx_buffer), 1000);
+        }
     }
+
+    Lis3dh_Free(lis3dh_dev);
     /* USER CODE END 3 */
 }
 
@@ -150,7 +175,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
 /* USER CODE END 4 */
 
 /**

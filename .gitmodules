@@ -1,0 +1,3 @@
+[submodule "Drivers/lis3dh-pid"]
+	path = Drivers/lis3dh-pid
+	url = git@github.com:STMicroelectronics/lis3dh-pid.git
