@@ -88,9 +88,8 @@ Lis3dh_dev_t *Lis3dh_New()
     lis3dh_device_id_get(dev_ctx, &whoamI);
 
     if (whoamI != LIS3DH_ID) {
-        while (1) {
-            // device is not found
-        }
+        // device is not found
+        return NULL;
     }
 
     /* Enable Block Data Update. */
