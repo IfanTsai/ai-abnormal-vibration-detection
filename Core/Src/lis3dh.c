@@ -94,10 +94,10 @@ Lis3dh_dev_t *Lis3dh_New()
 
     /* Enable Block Data Update. */
     lis3dh_block_data_update_set(dev_ctx, PROPERTY_ENABLE);
-    /* Set Output Data Rate to 1Hz. */
-    lis3dh_data_rate_set(dev_ctx, LIS3DH_ODR_1Hz);
-    /* Set full scale to 2g. */
-    lis3dh_full_scale_set(dev_ctx, LIS3DH_2g);
+    /* Set Output Data Rate to 1.6 kHz. */
+    lis3dh_data_rate_set(dev_ctx, LIS3DH_ODR_1kHz620_LP);
+    /* Set full scale to 4g. */
+    lis3dh_full_scale_set(dev_ctx, LIS3DH_4g);
     /* Enable temperature sensor. */
     lis3dh_aux_adc_set(dev_ctx, LIS3DH_AUX_ON_TEMPERATURE);
     /* Set device in continuous mode with 12 bit resol. */

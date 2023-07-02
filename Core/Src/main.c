@@ -19,17 +19,17 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "spi.h"
-#include "stm32l4xx_hal_gpio.h"
 #include "usart.h"
 #include "gpio.h"
-#include "lis3dh.h"
-
-#include <stdio.h>
-#include <string.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "lis3dh.h"
+#include "stm32l4xx_hal_gpio.h"
+#include "NanoEdgeAI.h"
 
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,18 +39,19 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+//#define COLLECTING_ACC_DATA
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+static float lis3dh_xyz[3];
+static float acc_buf[DATA_INPUT_USER * AXIS_NUMBER];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,11 +62,38 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
 // redirect printf to UART
 // ref: https://www.openstm32.org/forumthread1055
 int _write(int fd, char *ptr, int len)
 {
-    return HAL_UART_Transmit(&huart1, (const uint8_t *) ptr, len, 1000);
+    HAL_UART_Transmit(&huart1, (const uint8_t *) ptr, len, 1000);
+
+    return len;
+}
+
+static void Fill_ACC_Buf(Lis3dh_dev_t *lis3dh_dev)
+{
+    for (uint16_t i = 0; i < DATA_INPUT_USER; i++) {
+        if (lis3dh_dev->Read_Acceleration(lis3dh_dev, lis3dh_xyz)) {
+            acc_buf[AXIS_NUMBER* i] = lis3dh_xyz[0];
+            acc_buf[AXIS_NUMBER * i + 1] = lis3dh_xyz[1];
+            acc_buf[AXIS_NUMBER * i + 2] = lis3dh_xyz[2];
+        } else {
+            i--;
+        }
+    }
+
+}
+
+__attribute__ ((unused)) static void Collect_ACC_Data(Lis3dh_dev_t *lis3dh_dev)
+{
+    Fill_ACC_Buf(lis3dh_dev);
+
+    for (uint16_t isample = 0; isample < ARRAY_SIZE(acc_buf); isample++) {
+        printf("%4.2f", acc_buf[isample]);
+        printf(isample == ARRAY_SIZE(acc_buf) - 1 ? "\n" : " ");
+    }
 }
 /* USER CODE END 0 */
 
@@ -105,27 +133,40 @@ int main(void)
         printf("failed to new lis3dh device\r\n");
         Error_Handler();
     }
+
+#ifndef COLLECTING_ACC_DATA
+    uint8_t similarity = 0;
+
+    // init anomaly detection
+    if (neai_anomalydetection_init() != NEAI_OK) {
+        printf("failed to init anomaly detection\r\n");
+        Error_Handler();
+    }
+
+    // learnging process
+    for (uint16_t i = 0; i < MINIMUM_ITERATION_CALLS_FOR_EFFICIENT_LEARNING; i++) {
+        Fill_ACC_Buf(lis3dh_dev);
+        neai_anomalydetection_learn(acc_buf);
+    }
+#endif
+
+    HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
     /* USER CODE END 2 */
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    float acceleration_mg[3];
-    float temperature_degC;
     while (1) {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        HAL_GPIO_TogglePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin);
-        HAL_Delay(200);
-
-        if (lis3dh_dev->Read_Acceleration(lis3dh_dev, acceleration_mg)) {
-            printf("Acceleration [mg]:%4.2f\t%4.2f\t%4.2f\r\n",
-                    acceleration_mg[0], acceleration_mg[1], acceleration_mg[2]);
-        }
-
-        if (lis3dh_dev->Read_Temperature(lis3dh_dev, &temperature_degC)) {
-            printf("Temperature [degC]:%6.2f\r\n", temperature_degC);
-        }
+#ifdef COLLECTING_ACC_DATA
+        Collect_ACC_Data(lis3dh_dev);
+#else
+        // anomaly detection
+        Fill_ACC_Buf(lis3dh_dev);
+        neai_anomalydetection_detect(acc_buf, &similarity);
+        printf("similarity: %d\r\n", similarity);
+#endif
     }
 
     Lis3dh_Free(lis3dh_dev);
